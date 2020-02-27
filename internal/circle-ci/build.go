@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/isacikgoz/wtf-ci/internal/fails"
+	"github.com/isacikgoz/nutshell-ci/internal/fails"
 )
 
 // Build is the circle-ci job that is under investigation

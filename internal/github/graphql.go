@@ -29,8 +29,8 @@ type data struct {
 	} `json:"repository"`
 }
 
-// GetLatestCommitOfPR fetches the latest commit ID
-func GetLatestCommitOfPR(ctx context.Context, token, user, repo string, num int) (string, string, error) {
+// GetHeadOfPR fetches the latest commit ID
+func GetHeadOfPR(ctx context.Context, token, user, repo string, num int) (string, string, error) {
 	q := generateGraphQLQuery(user, repo, num)
 	qr := query{Query: q}
 
@@ -89,6 +89,15 @@ func generateGraphQLQuery(user, repo string, id int) string {
 		Repository: repo,
 		ID:         id,
 	}
+	var queryTpl = `{
+		repository(name: "{{.Repository}}", owner: "{{.Owner}}") {
+		  pullRequest(number: {{.ID}}) {
+			headRefName
+			headRefOid
+		  }
+		}
+	  }`
+
 	tpl := template.Must(template.New("pull").Parse(queryTpl))
 
 	w := bytes.NewBuffer(make([]byte, 0))

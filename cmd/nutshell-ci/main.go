@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	circle "github.com/isacikgoz/wtf-ci/internal/circle-ci"
-	"github.com/isacikgoz/wtf-ci/internal/fails"
-	"github.com/isacikgoz/wtf-ci/internal/github"
-	jenkins "github.com/isacikgoz/wtf-ci/internal/mm-jenkins"
+	circle "github.com/isacikgoz/nutshell-ci/internal/circle-ci"
+	"github.com/isacikgoz/nutshell-ci/internal/fails"
+	"github.com/isacikgoz/nutshell-ci/internal/github"
+	jenkins "github.com/isacikgoz/nutshell-ci/internal/mm-jenkins"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func main() {
 
 func run(ctx context.Context, owner, repo string, pr int) error {
 	fmt.Printf("Fetching the latest commit of PR#%d..\n", pr)
-	oid, branch, err := github.GetLatestCommitOfPR(
+	oid, branch, err := github.GetHeadOfPR(
 		context.Background(),
 		os.Getenv("GITHUB_TOKEN"),
 		owner,
@@ -48,12 +48,12 @@ func run(ctx context.Context, owner, repo string, pr int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Finding the failing check of commit %s..\n", oid[:7])
+	fmt.Printf("Looking for the failing checks of commit %s..\n", oid[:7])
 
 	readCircleCILogs(ctx, oid)
 	readJenkinsLogs(ctx, branch, pr)
 
-	fmt.Printf("Done. 🎉\n")
+	fmt.Printf("Done. 👋\n")
 	return nil
 }
 
@@ -62,6 +62,10 @@ func readCircleCILogs(ctx context.Context, oid string) error {
 	links, err := github.GetCircleCIFails(ctx, oid)
 	if err != nil {
 		return err
+	}
+	if len(links) == 0 {
+		fmt.Printf("No fails at Circle-CI 🎉\n")
+		return nil
 	}
 	for _, link := range links {
 		fmt.Printf("Found a failing check at %s ❌\n", link)
@@ -89,15 +93,21 @@ func readJenkinsLogs(ctx context.Context, branch string, pr int) error {
 	if err != nil {
 		return err
 	}
-
+	var fails int
 	for _, step := range build.Steps {
 		for _, node := range step.Fails {
+			// somehow extract correct link to build page
 			fmt.Printf("Found a failing check at %s ❌\n", strings.TrimSuffix(step.Link, "/runs/1/nodes"))
+			fails++
 			err = node.PrintFail()
 			if err != nil {
 				return err
 			}
 		}
 	}
+	if fails == 0 {
+		fmt.Printf("No fails at Jenkins 🎉\n")
+	}
+
 	return nil
 }

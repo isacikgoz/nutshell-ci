@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/isacikgoz/wtf-ci/internal/fails"
+	"github.com/isacikgoz/nutshell-ci/internal/fails"
 )
 
 const jenkinsLink = "https://build.mattermost.com/blue/rest/organizations/jenkins/pipelines/mp/pipelines/mattermost-server-pr-new/branches/"
@@ -41,9 +41,7 @@ func GetBuild(ctx context.Context, branch, pr string) (*Build, error) {
 	b.Steps = append(b.Steps, &Step{Link: pr})
 
 	for _, step := range b.Steps {
-		if err := step.getFailingNodes(ctx); err != nil {
-			return nil, err
-		}
+		step.getFailingNodes(ctx)
 	}
 
 	return b, nil
