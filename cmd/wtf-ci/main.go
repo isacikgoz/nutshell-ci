@@ -6,14 +6,21 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	circleci "github.com/isacikgoz/wtf-ci/internal/circle-ci"
+	circle "github.com/isacikgoz/wtf-ci/internal/circle-ci"
+	"github.com/isacikgoz/wtf-ci/internal/fails"
 	"github.com/isacikgoz/wtf-ci/internal/github"
-	mmjenkins "github.com/isacikgoz/wtf-ci/internal/mm-jenkins"
+	jenkins "github.com/isacikgoz/wtf-ci/internal/mm-jenkins"
 )
 
 func main() {
+
+	if len(os.Args) <= 1 {
+		if err := fails.Print(os.Stdout, os.Stdin); err != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	pr := os.Args[1]
 	s := strings.Split(pr, "/")
@@ -41,8 +48,16 @@ func run(ctx context.Context, owner, repo string, pr int) error {
 	if err != nil {
 		return err
 	}
-
 	fmt.Printf("Finding the failing check of commit %s..\n", oid[:7])
+
+	readCircleCILogs(ctx, oid)
+	readJenkinsLogs(ctx, branch, pr)
+
+	fmt.Printf("Done. 🎉\n")
+	return nil
+}
+
+func readCircleCILogs(ctx context.Context, oid string) error {
 
 	links, err := github.GetCircleCIFails(ctx, oid)
 	if err != nil {
@@ -50,44 +65,39 @@ func run(ctx context.Context, owner, repo string, pr int) error {
 	}
 	for _, link := range links {
 		fmt.Printf("Found a failing check at %s ❌\n", link)
-		if err := readCircleCILogs(ctx, link); err != nil {
-			//return err
-		}
-	}
-	if err := readJenkinsLogs(ctx, branch, pr); err != nil {
-		//return err
-	}
-	fmt.Printf("Done. 🎉\n")
-	return nil
-}
-
-func readCircleCILogs(ctx context.Context, path string) error {
-
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	build, err := circleci.GetBuild(context.Background(), os.Getenv("CIRCLECI_TOKEN"), path)
-	if err != nil {
-		return err
-	}
-
-	steps, _ := build.GetFailingSteps()
-	for _, step := range steps {
-		act := step.Actions[0]
-		fmt.Printf("The step %q took %s to finish ⏱\n", act.Name, act.Duration())
-
-		err = build.FindFails(act)
+		build, err := circle.GetBuild(context.Background(), os.Getenv("CIRCLECI_TOKEN"), link)
 		if err != nil {
 			return err
 		}
+
+		steps, _ := build.GetFailingSteps()
+		for _, step := range steps {
+			act := step.Actions[0]
+
+			err = build.FindFails(act)
+			if err != nil {
+				return err
+			}
+		}
 	}
+
 	return nil
 }
 
 func readJenkinsLogs(ctx context.Context, branch string, pr int) error {
-	err := mmjenkins.FindFails(ctx, branch, fmt.Sprintf("PR-%d", pr))
+	build, err := jenkins.GetBuild(ctx, branch, fmt.Sprintf("PR-%d", pr))
 	if err != nil {
 		return err
+	}
+
+	for _, step := range build.Steps {
+		for _, node := range step.Fails {
+			fmt.Printf("Found a failing check at %s ❌\n", strings.TrimSuffix(step.Link, "/runs/1/nodes"))
+			err = node.PrintFail()
+			if err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -14,6 +14,16 @@ type Step struct {
 	Actions []*Action `json:"actions"`
 }
 
+// Action is the definition and outcome of a Step
+type Action struct {
+	Name         string `json:"name"`
+	Failed       bool   `json:"failed"`
+	Status       string `json:"status"`
+	ExitCode     int    `json:"exit_code"`
+	AllocationID string `json:"allocation_id"`
+	Step         int    `json:"step"`
+}
+
 // GetBuild fetches the result of a circle-ci build
 func GetBuild(ctx context.Context, token, path string) (*Build, error) {
 	path = strings.Replace(path, "circleci.com/", "circleci.com/api/v1.1/project/", 1)

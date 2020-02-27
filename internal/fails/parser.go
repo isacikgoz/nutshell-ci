@@ -1,4 +1,4 @@
-package output
+package fails
 
 import (
 	"bufio"
@@ -12,8 +12,8 @@ const (
 	failIndicator = "--- FAIL:"
 )
 
-// PrintFails focuses to fails of a test output
-func PrintFails(w io.Writer, r io.Reader) error {
+// Print focuses to fails of a test output
+func Print(w io.Writer, r io.Reader) error {
 	var subMode, skip, found bool
 	var line, prevLine string
 

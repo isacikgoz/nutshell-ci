@@ -6,23 +6,13 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/isacikgoz/wtf-ci/internal/output"
+	"github.com/isacikgoz/wtf-ci/internal/fails"
 )
 
 // Build is the circle-ci job that is under investigation
 type Build struct {
 	path  string
 	Steps []*Step `json:"steps"`
-}
-
-// GetByName selects the step with the name provided
-func (b *Build) GetByName(name string) (*Step, error) {
-	for _, step := range b.Steps {
-		if step.Name == name {
-			return step, nil
-		}
-	}
-	return nil, fmt.Errorf("could not found step %q", name)
 }
 
 func (b *Build) GetFailingSteps() ([]*Step, error) {
@@ -44,7 +34,7 @@ func (b *Build) FindFails(a *Action) error {
 	}
 	defer res.Body.Close()
 
-	err = output.PrintFails(os.Stdout, res.Body)
+	err = fails.Print(os.Stdout, res.Body)
 	if err != nil {
 		return fmt.Errorf("could not print fails: %w", err)
 	}

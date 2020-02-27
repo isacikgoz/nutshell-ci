@@ -8,51 +8,49 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/isacikgoz/wtf-ci/internal/output"
+	"github.com/isacikgoz/wtf-ci/internal/fails"
 )
-
-// kv-set-improvements-5.21/runs/1/nodes/
-// PR-13942/runs/1/nodes/
 
 const jenkinsLink = "https://build.mattermost.com/blue/rest/organizations/jenkins/pipelines/mp/pipelines/mattermost-server-pr-new/branches/"
 
-type nodes struct {
-	Values []node
-}
-
-type node struct {
+type Node struct {
 	Result      string `json:"result"`
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
+	link        string
 }
 
-func FindFails(ctx context.Context, branch, pr string) error {
+type Build struct {
+	Steps []*Step
+}
 
+type Step struct {
+	Link  string
+	Fails []*Node
+}
+
+func GetBuild(ctx context.Context, branch, pr string) (*Build, error) {
 	branch = jenkinsLink + branch + "/runs/1/nodes"
 	pr = jenkinsLink + pr + "/runs/1/nodes/"
 
-	logURLs, err := getLog(ctx, branch)
-	if err != nil {
-		return err
+	b := &Build{
+		Steps: make([]*Step, 0),
 	}
-	for _, logURL := range logURLs {
-		fmt.Printf("Found a failing check at %s ❌\n", logURL)
-		if err := printFail(logURL); err != nil {
-			return err
+
+	b.Steps = append(b.Steps, &Step{Link: branch})
+	b.Steps = append(b.Steps, &Step{Link: pr})
+
+	for _, step := range b.Steps {
+		if err := step.getFailingNodes(ctx); err != nil {
+			return nil, err
 		}
 	}
 
-	logURLs, err = getLog(ctx, pr)
-	for _, logURL := range logURLs {
-		fmt.Printf("Found a failing check at %s ❌\n", logURL)
-		if err := printFail(logURL); err != nil {
-			return err
-		}
-	}
-	return nil
+	return b, nil
 }
 
-func printFail(url string) error {
+func (n *Node) PrintFail() error {
+	url := n.link + "/" + n.ID + "/log/"
 	cmd := exec.Command("curl", url)
 	reader, err := cmd.StdoutPipe()
 	if err != nil {
@@ -60,41 +58,43 @@ func printFail(url string) error {
 	}
 	cmd.Start()
 	go func() {
-		err = output.PrintFails(os.Stdout, reader)
+		err = fails.Print(os.Stdout, reader)
 		if err != nil {
 			fmt.Printf("could not print fails: %s\n", err)
 		}
 	}()
 	cmd.Wait()
 	reader.Close()
+
 	return nil
 }
 
-func getLog(ctx context.Context, url string) ([]string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+func (s *Step) getFailingNodes(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", s.Link, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer res.Body.Close()
 
-	data := []*node{}
+	data := []*Node{}
 
 	err = json.NewDecoder(res.Body).Decode(&data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	links := make([]string, 0)
+	nodes := make([]*Node, 0)
 	for _, node := range data {
 		if node.Result == "FAILURE" {
-			link := url + "/" + node.ID + "/log/"
-			links = append(links, link)
+			node.link = s.Link
+			nodes = append(nodes, node)
 		}
 	}
-	return links, nil
+	s.Fails = nodes
+	return nil
 }

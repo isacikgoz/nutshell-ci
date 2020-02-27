@@ -26,8 +26,6 @@ func GetCircleCIFails(ctx context.Context, oid string) ([]string, error) {
 		return nil, err
 	}
 
-	// TODO: Supports only circle-ci atm, add jenkins
-	// TODO: this could find more than one failing tests
 	re := regexp.MustCompile(`\[(\S+)\]\(((\S+)\?\S+)\) - Failed`)
 	submatches := re.FindAllSubmatch(data, -1)
 	links := make([]string, 0)
